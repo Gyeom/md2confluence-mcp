@@ -121,7 +121,7 @@ export class ConfluenceClient {
     const url = `${this.baseUrl}/rest/api/content/${pageId}/child/attachment`;
 
     const formData = new FormData();
-    formData.append("file", new Blob([data]), filename);
+    formData.append("file", new Blob([new Uint8Array(data)]), filename);
 
     const response = await fetch(url, {
       method: "POST",
@@ -140,9 +140,25 @@ export class ConfluenceClient {
 
   /**
    * List spaces
+   * @param limit - Max spaces to return
+   * @param type - Space type: "global", "personal", or "all" (default)
    */
-  async listSpaces(limit: number = 25): Promise<any[]> {
-    const result = await this.request(`/space?limit=${limit}`);
+  async listSpaces(limit: number = 25, type: string = "all"): Promise<any[]> {
+    if (type === "all") {
+      // Fetch both global and personal spaces
+      const [globalResult, personalResult] = await Promise.all([
+        this.request(`/space?limit=${limit}&type=global`),
+        this.request(`/space?limit=${limit}&type=personal`),
+      ]);
+
+      const combined = [...globalResult.results, ...personalResult.results];
+      // Sort by name and limit
+      return combined
+        .sort((a: any, b: any) => a.name.localeCompare(b.name))
+        .slice(0, limit);
+    }
+
+    const result = await this.request(`/space?limit=${limit}&type=${type}`);
     return result.results;
   }
 

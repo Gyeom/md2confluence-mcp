@@ -62,32 +62,64 @@ Add to your project's `.mcp.json`:
 
 ## Usage
 
-Once configured, Claude Code can use these tools automatically:
+Once configured, Claude Code can use these tools automatically.
 
-### Upload a new page
+### Prompt Examples
 
-```
-"Upload this document to Confluence in the TEAM space"
-```
-
-Claude will call `upload_page` with the Markdown content.
-
-### Update existing page
+#### Upload to your personal space
 
 ```
-"Update the Confluence page at [URL] with this content"
+"Upload README.md to my personal Confluence space"
 ```
 
-### List spaces
+```
+"Upload this document to my Confluence space"
+```
+
+#### Upload to a specific space (with URL)
+
+```
+"Upload docs/SETUP.md to Confluence here: https://company.atlassian.net/wiki/spaces/TEAM/overview"
+```
+
+```
+"Create a new page in https://company.atlassian.net/wiki/spaces/~712020170fdaa4716743419285f156aa587665/overview with this content"
+```
+
+#### Update an existing page
+
+```
+"Update this Confluence page with the latest content: https://company.atlassian.net/wiki/spaces/TEAM/pages/123456/My+Page"
+```
+
+```
+"Sync docs/API.md to https://company.atlassian.net/wiki/spaces/EN/pages/789012/API+Reference"
+```
+
+#### List and search
 
 ```
 "Show me available Confluence spaces"
 ```
 
-### Search pages
-
 ```
-"Find Confluence pages about authentication"
+"Find Confluence pages about authentication in the EN space"
+```
+
+### Space Key Format
+
+| Type | Format | Example |
+|------|--------|---------|
+| Global space | Short key | `TEAM`, `EN`, `PROD` |
+| Personal space | `~` + ID | `~712020170fdaa4716743419285f156aa587665` |
+
+**Tip:** You can extract the space key from a Confluence URL:
+```
+https://company.atlassian.net/wiki/spaces/TEAM/overview
+                                        ^^^^ space key
+
+https://company.atlassian.net/wiki/spaces/~712020.../overview
+                                        ^^^^^^^^^^ personal space key
 ```
 
 ## Tools

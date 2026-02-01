@@ -42,6 +42,7 @@ const UpdatePageSchema = z.object({
 
 const ListSpacesSchema = z.object({
   limit: z.number().optional().default(25).describe("Max spaces to return"),
+  type: z.enum(["global", "personal", "all"]).optional().default("all").describe("Space type filter"),
 });
 
 const SearchPagesSchema = z.object({
@@ -96,11 +97,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "list_spaces",
-        description: "List available Confluence spaces",
+        description: "List available Confluence spaces. Use type='personal' to find personal spaces (keys start with ~)",
         inputSchema: {
           type: "object",
           properties: {
             limit: { type: "number", description: "Max spaces to return", default: 25 },
+            type: { type: "string", enum: ["global", "personal", "all"], description: "Space type: global, personal, or all (default)", default: "all" },
           },
         },
       },
@@ -182,18 +184,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "list_spaces": {
-        const { limit } = ListSpacesSchema.parse(args);
-        const spaces = await client.listSpaces(limit);
+        const { limit, type } = ListSpacesSchema.parse(args);
+        const spaces = await client.listSpaces(limit, type);
 
         const spaceList = spaces
-          .map((s: any) => `- ${s.key}: ${s.name}`)
+          .map((s: any) => {
+            const spaceType = s.type === "personal" ? " (personal)" : "";
+            return `- ${s.key}: ${s.name}${spaceType}`;
+          })
           .join("\n");
 
         return {
           content: [
             {
               type: "text",
-              text: `Found ${spaces.length} spaces:\n\n${spaceList}`,
+              text: `Found ${spaces.length} spaces (type: ${type}):\n\n${spaceList}`,
             },
           ],
         };
