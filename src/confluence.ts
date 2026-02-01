@@ -115,9 +115,33 @@ export class ConfluenceClient {
   }
 
   /**
-   * Upload attachment
+   * Get attachments for a page
+   */
+  async getAttachments(pageId: string): Promise<Array<{ id: string; title: string }>> {
+    const result = await this.request(`/content/${pageId}/child/attachment`);
+    return result.results.map((r: any) => ({
+      id: r.id,
+      title: r.title,
+    }));
+  }
+
+  /**
+   * Upload attachment (skips if already exists with same filename)
    */
   async uploadAttachment(pageId: string, filename: string, data: Buffer): Promise<void> {
+    // Check if attachment already exists
+    try {
+      const existingAttachments = await this.getAttachments(pageId);
+      const existing = existingAttachments.find((a) => a.title === filename);
+
+      if (existing) {
+        // Same filename = same content hash = no need to re-upload
+        return;
+      }
+    } catch (error) {
+      // If we can't check, proceed with upload attempt
+    }
+
     const url = `${this.baseUrl}/rest/api/content/${pageId}/child/attachment`;
 
     const formData = new FormData();

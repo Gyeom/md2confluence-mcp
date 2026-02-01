@@ -7,6 +7,8 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { readFileSync, existsSync } from "fs";
+import { resolve } from "path";
 import { ConfluenceClient } from "./confluence.js";
 import { convertMarkdownToConfluence } from "./converter.js";
 
@@ -93,6 +95,12 @@ const SearchPagesSchema = z.object({
   limit: z.number().optional().default(10).describe("Max results"),
 });
 
+const SyncFileSchema = z.object({
+  file_path: z.string().describe("Exact local file path to sync (e.g., /path/to/readme.md)"),
+  page_url: z.string().describe("Confluence page URL to update"),
+  title: z.string().optional().describe("Override page title (optional, uses existing title if not provided)"),
+});
+
 // Create server
 const server = new Server(
   {
@@ -159,6 +167,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             limit: { type: "number", description: "Max results", default: 10 },
           },
           required: ["query"],
+        },
+      },
+      {
+        name: "sync_file",
+        description: `Sync a LOCAL file to a Confluence page. This tool reads the file directly from the filesystem.
+
+⚠️ CRITICAL INSTRUCTIONS FOR AI:
+- file_path MUST be the EXACT path specified by the user
+- Do NOT infer or guess file path based on Confluence page title or URL content
+- If user says "sync readme.md to URL", find "readme.md" file, NOT files matching page title
+- If multiple files match, ask user to specify the exact path
+- This tool handles file reading internally - just pass the path
+
+Examples:
+- User: "sync readme.md to https://..." → file_path: "/path/to/readme.md" (find readme.md)
+- User: "sync /docs/guide.md to https://..." → file_path: "/docs/guide.md" (exact path)`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            file_path: { type: "string", description: "Exact local file path to sync. Use the path specified by user, NOT inferred from Confluence URL." },
+            page_url: { type: "string", description: "Confluence page URL to update" },
+            title: { type: "string", description: "Override page title (optional)" },
+          },
+          required: ["file_path", "page_url"],
         },
       },
     ],
@@ -292,6 +324,49 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: `Found ${pages.length} pages:\n\n${pageList}`,
+            },
+          ],
+        };
+      }
+
+      case "sync_file": {
+        const { file_path, page_url, title } = SyncFileSchema.parse(args);
+
+        // Resolve and validate file path
+        const resolvedPath = resolve(file_path);
+        if (!existsSync(resolvedPath)) {
+          throw new Error(`File not found: ${resolvedPath}`);
+        }
+
+        // Read file content
+        const content = readFileSync(resolvedPath, "utf-8");
+
+        // Parse page URL to get page ID
+        const { pageId } = parseConfluenceUrl(page_url);
+        if (!pageId) {
+          throw new Error(`Could not extract page ID from URL: ${page_url}. Please provide a valid Confluence page URL.`);
+        }
+
+        // Get current page info
+        const currentPage = await client.getPage(pageId);
+        const newTitle = title || currentPage.title;
+
+        // Convert Markdown to Confluence format
+        const { html, attachments } = await convertMarkdownToConfluence(content);
+
+        // Update page
+        const page = await client.updatePage(pageId, newTitle, html, currentPage.version + 1);
+
+        // Upload attachments
+        for (const attachment of attachments) {
+          await client.uploadAttachment(pageId, attachment.filename, attachment.data);
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `✅ File synced to Confluence!\n\nSource: ${resolvedPath}\nPage: ${page.url}\nTitle: ${newTitle}\nVersion: ${page.version}\nAttachments: ${attachments.length}`,
             },
           ],
         };
