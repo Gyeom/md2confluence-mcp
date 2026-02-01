@@ -2,6 +2,7 @@
   "name": "md2confluence-mcp",
   "version": "0.1.0",
   "description": "MCP server for uploading Markdown to Confluence with images",
+  "type": "module",
   "main": "dist/index.js",
   "bin": {
     "md2confluence-mcp": "dist/index.js"
