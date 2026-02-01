@@ -30,7 +30,7 @@ function validateConfig() {
 const UploadPageSchema = z.object({
   content: z.string().describe("Markdown content to upload"),
   title: z.string().describe("Page title"),
-  spaceKey: z.string().describe("Confluence space key"),
+  spaceKey: z.string().optional().describe("Confluence space key. If not provided, uploads to your personal space"),
   parentId: z.string().optional().describe("Parent page ID (optional)"),
 });
 
@@ -70,16 +70,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "upload_page",
-        description: "Upload Markdown as a new Confluence page. Mermaid diagrams are automatically converted to images.",
+        description: "Upload Markdown as a new Confluence page. Mermaid diagrams are automatically converted to images. If spaceKey is not provided, uploads to your personal space.",
         inputSchema: {
           type: "object",
           properties: {
             content: { type: "string", description: "Markdown content to upload" },
             title: { type: "string", description: "Page title" },
-            spaceKey: { type: "string", description: "Confluence space key" },
+            spaceKey: { type: "string", description: "Confluence space key. If not provided, uploads to your personal space" },
             parentId: { type: "string", description: "Parent page ID (optional)" },
           },
-          required: ["content", "title", "spaceKey"],
+          required: ["content", "title"],
         },
       },
       {
@@ -132,7 +132,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case "upload_page": {
-        const { content, title, spaceKey, parentId } = UploadPageSchema.parse(args);
+        const { content, title, spaceKey: providedSpaceKey, parentId } = UploadPageSchema.parse(args);
+
+        // Use provided spaceKey or default to personal space
+        const spaceKey = providedSpaceKey || await client.getPersonalSpaceKey();
+        const isPersonalSpace = !providedSpaceKey;
 
         // Convert Markdown to Confluence format
         const { html, attachments } = await convertMarkdownToConfluence(content);
@@ -145,11 +149,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           await client.uploadAttachment(page.id, attachment.filename, attachment.data);
         }
 
+        const spaceInfo = isPersonalSpace ? `${spaceKey} (personal)` : spaceKey;
+
         return {
           content: [
             {
               type: "text",
-              text: `✅ Page created: ${page.url}\n\nTitle: ${title}\nSpace: ${spaceKey}\nAttachments: ${attachments.length}`,
+              text: `✅ Page created: ${page.url}\n\nTitle: ${title}\nSpace: ${spaceInfo}\nAttachments: ${attachments.length}`,
             },
           ],
         };

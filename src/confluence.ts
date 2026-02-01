@@ -163,6 +163,26 @@ export class ConfluenceClient {
   }
 
   /**
+   * Get current user info
+   */
+  async getCurrentUser(): Promise<{ accountId: string; email: string; displayName: string }> {
+    const result = await this.request("/user/current");
+    return {
+      accountId: result.accountId,
+      email: result.email,
+      displayName: result.displayName,
+    };
+  }
+
+  /**
+   * Get current user's personal space key
+   */
+  async getPersonalSpaceKey(): Promise<string> {
+    const user = await this.getCurrentUser();
+    return `~${user.accountId}`;
+  }
+
+  /**
    * Search pages
    */
   async searchPages(query: string, spaceKey?: string, limit: number = 10): Promise<any[]> {
