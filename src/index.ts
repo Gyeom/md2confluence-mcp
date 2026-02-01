@@ -30,25 +30,50 @@ function validateConfig() {
 const UploadPageSchema = z.object({
   content: z.string().describe("Markdown content to upload"),
   title: z.string().describe("Page title"),
-  space: z.string().describe("Confluence space key or URL (e.g., 'SPE' or 'https://xxx.atlassian.net/wiki/spaces/SPE/...')"),
+  space: z.string().describe("Confluence space key, space URL, or page URL. If page URL is provided with a valid page ID, it will update the existing page instead of creating a new one."),
   parentId: z.string().optional().describe("Parent page ID (optional)"),
 });
 
 /**
- * Parse space key from URL or return as-is if already a space key
- * URL format: https://xxx.atlassian.net/wiki/spaces/SPACEKEY/...
+ * Parse Confluence URL to extract space key and optionally page ID
+ * URL formats:
+ * - Space URL: https://xxx.atlassian.net/wiki/spaces/SPACEKEY/...
+ * - Page URL: https://xxx.atlassian.net/wiki/spaces/SPACEKEY/pages/PAGEID/...
+ * - Edit URL: https://xxx.atlassian.net/wiki/spaces/SPACEKEY/pages/edit-v2/PAGEID?...
  */
-function parseSpaceKey(input: string): string {
-  // If it looks like a URL, extract space key
+interface ParsedConfluenceUrl {
+  spaceKey: string;
+  pageId?: string;
+}
+
+function parseConfluenceUrl(input: string): ParsedConfluenceUrl {
+  // If it looks like a URL, extract space key and optionally page ID
   if (input.startsWith("http")) {
-    const match = input.match(/\/spaces\/([^\/]+)/);
-    if (match) {
-      return match[1];
+    const spaceMatch = input.match(/\/spaces\/([^\/]+)/);
+    if (!spaceMatch) {
+      throw new Error(`Could not extract space key from URL: ${input}`);
     }
-    throw new Error(`Could not extract space key from URL: ${input}`);
+    const spaceKey = spaceMatch[1];
+
+    // Try to extract page ID from various URL formats
+    // Format 1: /pages/PAGEID/... or /pages/PAGEID?...
+    // Format 2: /pages/edit-v2/PAGEID?...
+    let pageId: string | undefined;
+
+    const editPageMatch = input.match(/\/pages\/edit-v2\/(\d+)/);
+    if (editPageMatch) {
+      pageId = editPageMatch[1];
+    } else {
+      const pageMatch = input.match(/\/pages\/(\d+)/);
+      if (pageMatch) {
+        pageId = pageMatch[1];
+      }
+    }
+
+    return { spaceKey, pageId };
   }
   // Otherwise, assume it's already a space key
-  return input;
+  return { spaceKey: input };
 }
 
 const UpdatePageSchema = z.object({
@@ -87,13 +112,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "upload_page",
-        description: "Upload Markdown as a new Confluence page. Mermaid diagrams are automatically converted to images. space is required - if not provided, ask the user for space key or Confluence URL.",
+        description: "Upload Markdown to Confluence. IMPORTANT: Do NOT call list_spaces first. Instead, directly ask the user for: (1) space key (e.g., 'SPE'), (2) space URL, or (3) existing page URL to update. If a page URL with page ID is provided, it automatically updates that page (must be published, not draft). Mermaid diagrams are auto-converted to images.",
         inputSchema: {
           type: "object",
           properties: {
             content: { type: "string", description: "Markdown content to upload" },
             title: { type: "string", description: "Page title" },
-            space: { type: "string", description: "Confluence space key or URL. Ask user if not provided. (e.g., 'SPE' or 'https://xxx.atlassian.net/wiki/spaces/SPE/...')" },
+            space: { type: "string", description: "Space key, space URL, or page URL. If page URL contains a page ID, it will update that page. Ask user directly without listing spaces first." },
             parentId: { type: "string", description: "Parent page ID (optional)" },
           },
           required: ["content", "title", "space"],
@@ -114,7 +139,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "list_spaces",
-        description: "List available Confluence spaces. Use type='personal' to find personal spaces (keys start with ~)",
+        description: "List available Confluence spaces. NOTE: Do NOT use this before upload_page. Only use when user explicitly asks to browse/list spaces. For uploads, ask user directly for space key or URL.",
         inputSchema: {
           type: "object",
           properties: {
@@ -151,13 +176,43 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "upload_page": {
         const { content, title, space, parentId } = UploadPageSchema.parse(args);
 
-        // Parse space key from URL or use directly
-        const spaceKey = parseSpaceKey(space);
+        // Parse space key and optionally page ID from URL
+        const { spaceKey, pageId } = parseConfluenceUrl(space);
 
         // Convert Markdown to Confluence format
         const { html, attachments } = await convertMarkdownToConfluence(content);
 
-        // Create page
+        // If page ID is provided, update existing page instead of creating new one
+        if (pageId) {
+          try {
+            const currentPage = await client.getPage(pageId);
+            const newTitle = title || currentPage.title;
+
+            const page = await client.updatePage(pageId, newTitle, html, currentPage.version + 1);
+
+            for (const attachment of attachments) {
+              await client.uploadAttachment(pageId, attachment.filename, attachment.data);
+            }
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `✅ Page updated (auto-detected from URL): ${page.url}\n\nTitle: ${newTitle}\nVersion: ${page.version}\nAttachments: ${attachments.length}`,
+                },
+              ],
+            };
+          } catch (error: any) {
+            // If page not found (draft or deleted), fall through to create new page
+            if (error.message?.includes("404") || error.message?.includes("not found")) {
+              console.error(`Page ${pageId} not found (may be draft or deleted), creating new page instead`);
+            } else {
+              throw error;
+            }
+          }
+        }
+
+        // Create new page
         const page = await client.createPage(spaceKey, title, html, parentId);
 
         // Upload attachments (Mermaid images)
