@@ -101,6 +101,12 @@ const SyncFileSchema = z.object({
   title: z.string().optional().describe("Override page title (optional, uses existing title if not provided)"),
 });
 
+const CreateChildPageSchema = z.object({
+  content: z.string().describe("Markdown content to upload"),
+  title: z.string().describe("Page title"),
+  parentPageUrl: z.string().describe("Parent page URL. The new page will be created as a child of this page."),
+});
+
 // Create server
 const server = new Server(
   {
@@ -191,6 +197,19 @@ Examples:
             title: { type: "string", description: "Override page title (optional)" },
           },
           required: ["file_path", "page_url"],
+        },
+      },
+      {
+        name: "create_child_page",
+        description: "Create a NEW page as a child (sub-page) of an existing page. Use this when user wants to create a page UNDER/BELOW another page. Do NOT use upload_page for this - upload_page creates pages at space root level.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            content: { type: "string", description: "Markdown content to upload" },
+            title: { type: "string", description: "Page title" },
+            parentPageUrl: { type: "string", description: "Parent page URL. The new page will be created as a child of this page." },
+          },
+          required: ["content", "title", "parentPageUrl"],
         },
       },
     ],
@@ -367,6 +386,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: `✅ File synced to Confluence!\n\nSource: ${resolvedPath}\nPage: ${page.url}\nTitle: ${newTitle}\nVersion: ${page.version}\nAttachments: ${attachments.length}`,
+            },
+          ],
+        };
+      }
+
+      case "create_child_page": {
+        const { content, title, parentPageUrl } = CreateChildPageSchema.parse(args);
+
+        // Parse parent page URL to get space key and page ID
+        const { spaceKey, pageId: parentId } = parseConfluenceUrl(parentPageUrl);
+        if (!parentId) {
+          throw new Error(`Could not extract parent page ID from URL: ${parentPageUrl}. Please provide a valid Confluence page URL.`);
+        }
+
+        // Convert Markdown to Confluence format
+        const { html, attachments } = await convertMarkdownToConfluence(content);
+
+        // Create new page under parent
+        const page = await client.createPage(spaceKey, title, html, parentId);
+
+        // Upload attachments
+        for (const attachment of attachments) {
+          await client.uploadAttachment(page.id, attachment.filename, attachment.data);
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `✅ Child page created: ${page.url}\n\nTitle: ${title}\nParent: ${parentPageUrl}\nSpace: ${spaceKey}\nAttachments: ${attachments.length}`,
             },
           ],
         };

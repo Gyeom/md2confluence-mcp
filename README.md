@@ -102,6 +102,16 @@ Once configured, Claude Code can use these tools automatically.
 "Sync docs/API.md to https://company.atlassian.net/wiki/spaces/EN/pages/789012/API+Reference"
 ```
 
+#### Create a child page (sub-page)
+
+```
+"Create a new page under https://company.atlassian.net/wiki/spaces/TEAM/pages/123456/Parent+Page"
+```
+
+```
+"Add a sub-page to this page: https://company.atlassian.net/wiki/spaces/EN/pages/789012/Guide"
+```
+
 #### List and search
 
 ```
@@ -134,6 +144,8 @@ https://company.atlassian.net/wiki/spaces/~712020.../overview
 |------|-------------|
 | `upload_page` | Create a new Confluence page from Markdown |
 | `update_page` | Update an existing page |
+| `create_child_page` | Create a new page under an existing page |
+| `sync_file` | Sync a local file to an existing page |
 | `list_spaces` | List available spaces |
 | `search_pages` | Search for pages |
 
