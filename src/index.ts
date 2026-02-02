@@ -32,8 +32,7 @@ function validateConfig() {
 const UploadPageSchema = z.object({
   content: z.string().describe("Markdown content to upload"),
   title: z.string().describe("Page title"),
-  space: z.string().describe("Confluence space key, space URL, or page URL. If page URL is provided with a valid page ID, it will update the existing page instead of creating a new one."),
-  parentId: z.string().optional().describe("Parent page ID (optional)"),
+  space: z.string().describe("Space key/URL for new page, or page URL to update existing page"),
 });
 
 /**
@@ -126,14 +125,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "upload_page",
-        description: "Upload Markdown to Confluence. IMPORTANT: Do NOT call list_spaces first. Instead, directly ask the user for: (1) space key (e.g., 'SPE'), (2) space URL, or (3) existing page URL to update. If a page URL with page ID is provided, it automatically updates that page (must be published, not draft). Mermaid diagrams are auto-converted to images.",
+        description: `Upload Markdown to Confluence at SPACE ROOT level or UPDATE existing page.
+
+⚠️ ROUTING RULES:
+- Page URL provided → UPDATES that existing page (ignores parentId)
+- Space key/URL only → Creates NEW page at space root level
+
+❌ DO NOT use this tool to create child/sub-pages.
+✅ Use 'create_child_page' tool instead for hierarchical pages.
+
+Mermaid diagrams are auto-converted to images.`,
         inputSchema: {
           type: "object",
           properties: {
             content: { type: "string", description: "Markdown content to upload" },
             title: { type: "string", description: "Page title" },
-            space: { type: "string", description: "Space key, space URL, or page URL. If page URL contains a page ID, it will update that page. Ask user directly without listing spaces first." },
-            parentId: { type: "string", description: "Parent page ID (optional)" },
+            space: { type: "string", description: "Space key or space URL for new page creation, OR page URL to update existing page." },
           },
           required: ["content", "title", "space"],
         },
@@ -201,7 +208,15 @@ Examples:
       },
       {
         name: "create_child_page",
-        description: "Create a NEW page as a child (sub-page) of an existing page. Use this when user wants to create a page UNDER/BELOW another page. Do NOT use upload_page for this - upload_page creates pages at space root level.",
+        description: `Create a NEW page as a child (sub-page) of an existing page.
+
+⚠️ MUST USE THIS TOOL WHEN:
+- User wants to create a page "under", "below", "하위에", or "beneath" another page
+- User provides a parent page URL and wants NEW content added as a sub-page
+- User says "put this under [page]", "[page] 하위에 넣어줘", "add as child of [page]"
+
+❌ WARNING: upload_page with a page URL will UPDATE that page, NOT create a child.
+✅ ALWAYS use create_child_page for hierarchical page creation.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -225,7 +240,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case "upload_page": {
-        const { content, title, space, parentId } = UploadPageSchema.parse(args);
+        const { content, title, space } = UploadPageSchema.parse(args);
 
         // Parse space key and optionally page ID from URL
         const { spaceKey, pageId } = parseConfluenceUrl(space);
@@ -263,8 +278,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         }
 
-        // Create new page
-        const page = await client.createPage(spaceKey, title, html, parentId);
+        // Create new page at space root level (no parent)
+        const page = await client.createPage(spaceKey, title, html);
 
         // Upload attachments (Mermaid images)
         for (const attachment of attachments) {
