@@ -7,7 +7,7 @@
 
 ## Demo
 
-<video src="https://raw.githubusercontent.com/Gyeom/md2confluence-mcp/main/assets/demo.mp4" controls width="100%"></video>
+![demo](./assets/demo.gif)
 
 > Uploading [showcase.md](./docs/showcase.md) to Confluence with images and Mermaid diagrams
 
