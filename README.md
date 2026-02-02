@@ -5,6 +5,12 @@
 [![npm](https://img.shields.io/npm/v/md2confluence-mcp)](https://www.npmjs.com/package/md2confluence-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## Demo
+
+<video src="https://raw.githubusercontent.com/Gyeom/md2confluence-mcp/main/assets/demo.mp4" controls width="100%"></video>
+
+> Uploading [showcase.md](./docs/showcase.md) to Confluence with images and Mermaid diagrams
+
 ## Features
 
 - ✅ **Mermaid diagrams** → PNG (auto-converted via kroki.io)
