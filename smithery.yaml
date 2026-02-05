@@ -1,0 +1,28 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      CONFLUENCE_URL:
+        type: string
+        description: Confluence base URL (e.g., https://your-domain.atlassian.net/wiki)
+      CONFLUENCE_EMAIL:
+        type: string
+        description: Your Atlassian account email
+      CONFLUENCE_TOKEN:
+        type: string
+        description: Confluence API token
+    required:
+      - CONFLUENCE_URL
+      - CONFLUENCE_EMAIL
+      - CONFLUENCE_TOKEN
+  commandFunction: |-
+    (config) => ({
+      command: 'npx',
+      args: ['-y', 'md2confluence-mcp'],
+      env: {
+        CONFLUENCE_URL: config.CONFLUENCE_URL,
+        CONFLUENCE_EMAIL: config.CONFLUENCE_EMAIL,
+        CONFLUENCE_TOKEN: config.CONFLUENCE_TOKEN
+      }
+    })
