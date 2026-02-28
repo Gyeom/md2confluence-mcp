@@ -11,6 +11,10 @@
 
 > Uploading [showcase.md](./docs/showcase.md) to Confluence with images and Mermaid diagrams
 
+<a href="https://glama.ai/mcp/servers/@Gyeom/md2confluence-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@Gyeom/md2confluence-mcp/badge" alt="md2confluence-mcp MCP server" />
+</a>
+
 ## Features
 
 - ✅ **Mermaid diagrams** → PNG (auto-converted via kroki.io)
