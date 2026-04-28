@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gyeom-md2confluence-mcp-badge.png)](https://mseep.ai/app/gyeom-md2confluence-mcp)
+
 # md2confluence-mcp
 
 **Markdown to Confluence converter** — MCP server that uploads Markdown files to Atlassian Confluence with auto-converted Mermaid diagrams, code blocks, and images.
